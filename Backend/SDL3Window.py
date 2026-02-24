@@ -209,7 +209,7 @@ class SDL3Window:
             return
 
         if not SDL_SetWindowIcon(self.window, application_icon):
-            Logger.log_warning(Framework.GUIError(f'Failed to set application icon: {SDL_GetError().decode("utf-8")}'))
+            Logger.log_warning(f'Failed to set application icon: {SDL_GetError().decode("utf-8")}')
             return
 
     @property
