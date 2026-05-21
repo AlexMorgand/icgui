@@ -16,6 +16,35 @@ from Logging import Logger
 import Framework
 
 
+_TURNTABLE_EXIF_KEYS = (
+    'turntable_original_c2w',
+    'turntable_original_w2c',
+    'turntable_fixed_c2w',
+    'turntable_object_transform',
+)
+
+
+def _without_turntable_exif(view: View) -> View:
+    """Remove training-only turntable metadata so GUI free-camera views stay free."""
+    for key in _TURNTABLE_EXIF_KEYS:
+        view.exif.pop(key, None)
+    return view
+
+
+def _to_gui_dataset_pose(view: View) -> View:
+    """Expose original capture poses to GUI pose navigation in turntable mode."""
+    pose = view.to_simple()
+    original_c2w = pose.exif.get('turntable_original_c2w')
+    if original_c2w is not None:
+        pose.c2w = original_c2w
+    return _without_turntable_exif(pose)
+
+
+def _to_gui_default_view(view: View) -> View:
+    """Keep the dataset default c2w, but avoid renderer turntable overrides in the GUI."""
+    return _without_turntable_exif(view.to_simple())
+
+
 def launch_gui_process(gui_config: LaunchConfig, dataset: BaseDataset,
                        training: bool = False, **gui_kwargs) -> tuple[SharedState, mp.Process]:
     """Launches the GUI as a separate process and returns synchronization objects."""
@@ -35,10 +64,10 @@ def launch_gui_process(gui_config: LaunchConfig, dataset: BaseDataset,
             Logger.log_info(f'No poses found for split "{split}".')
             shared_state.splits.remove(split)
             continue
-        dataset_poses[split] = [pose.to_simple() for pose in dataset.data[split]]
+        dataset_poses[split] = [_to_gui_dataset_pose(pose) for pose in dataset.data[split]]
 
     # Check if the dataset has a default view
-    default_view = dataset.default_view.to_simple()
+    default_view = _to_gui_default_view(dataset.default_view)
     if default_view is None or not isinstance(default_view, View):
         raise Framework.GUIError('No default view found in the dataset. Aborting.')
 
