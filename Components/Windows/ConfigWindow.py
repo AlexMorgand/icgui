@@ -11,7 +11,8 @@ from ICGui.Components.ButtonBehavior import button_behavior
 from ICGui.Components.ConfigSections import (Section,
     AdvancedSection, CameraSection, ControlsSection, DynamicSection,
     KeybindsSection, OutputSelectionSection, OverlaysSection,
-    PerformanceSection, PoseSection, ResolutionSection, ScreenshotSection
+    PerformanceSection, PoseSection, ResolutionSection, ScreenshotSection,
+    DebugInfoSection
 )
 from ICGui.Components.LinkButton import link_button, link_text
 from ICGui.State.Volatile import GlobalState
@@ -44,6 +45,7 @@ class ConfigWindow(Window):
         self.sections.append(AdvancedSection())
         self.sections.append(ControlsSection())
         self.sections.append(KeybindsSection())
+        self.sections.append(DebugInfoSection())
 
     def _render(self, **kwargs):
         """Renders the GUI component."""

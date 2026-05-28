@@ -14,6 +14,11 @@ class BaseOverlay:
         """Returns the name of the extra."""
         pass
 
+    @property
+    def help(self) -> str | None:
+        """Returns a help string describing the extra, or None if no help is available."""
+        return None
+
     @abstractmethod
     def render_options(self):
         """Renders imgui inputs for the options of the extra."""

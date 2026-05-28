@@ -8,7 +8,6 @@ import torch
 from imgui_bundle import imgui, icons_fontawesome_6 as fa
 
 from Cameras.Base import BaseCamera
-from Cameras.Perspective import PerspectiveCamera
 from Cameras.utils import BaseDistortion, SharedCameraSettings
 from ICGui.Components.Colors import apply_ui_color
 from ICGui.Components.EpsilonRangeInput import epsilon_range_input

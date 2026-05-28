@@ -42,7 +42,7 @@ class PerformanceSection(Section):
 
         with button_behavior('Model FPS') as button:
             if self._fps_as_ms:
-                imgui.text('Frame times (Model):')
+                imgui.text('Frame times (Renderer):')
                 imgui.same_line()
                 if state.model_frametime == 'N/A':
                     fps_text = 'N/A'
@@ -50,7 +50,7 @@ class PerformanceSection(Section):
                     fps_text = f'{state.model_frametime} ± {state.model_frametime_std}'
                 FontManager.muted_color(imgui.text)(fps_text)
             else:
-                imgui.text('FPS (Model):')
+                imgui.text('FPS (Renderer):')
                 imgui.same_line()
                 if math.isnan(state.model_framerate):
                     fps_text = 'N/A'
@@ -79,7 +79,7 @@ class PerformanceSection(Section):
 
             with button_behavior('Training Progress') as button:
                 imgui.progress_bar(progress, overlay=overlay_text, size_arg=(0, 0))
-                imgui.same_line()
+                imgui.same_line(spacing=imgui.get_style().item_inner_spacing.x)
                 imgui.text('Training Progress')
             self._training_percentage ^= button.pressed
         else:

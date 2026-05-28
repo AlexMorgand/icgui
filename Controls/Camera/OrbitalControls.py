@@ -136,9 +136,10 @@ class OrbitalControls(BaseControls):
                                                          self.zoom_speed / 20.0),
                             0.01)
 
-    def ease_to(self, *, to_w2c: np.ndarray = None, to_c2w: np.ndarray = None, duration: float = 1.0) -> BaseControls:
+    def ease_to(self, *, to_w2c: np.ndarray = None, to_c2w: np.ndarray = None,
+                to_timestamp: float | None = None, duration: float = 1.0) -> BaseControls:
         """Eases the camera to the given target camera."""
-        target_camera: OrbitalControls = super().ease_to(to_w2c=to_w2c, to_c2w= to_c2w, duration=duration)  # type: ignore[return-value]
+        target_camera: OrbitalControls = super().ease_to(to_w2c=to_w2c, to_c2w=to_c2w, to_timestamp=to_timestamp, duration=duration)  # type: ignore[return-value]
         if GlobalState().skip_animations:
             return target_camera
         self._animation.from_attributes['distance'] = self.distance  # type: ignore

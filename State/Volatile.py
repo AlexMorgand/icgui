@@ -14,8 +14,7 @@ from Cameras.Base import BaseCamera
 from Cameras.Perspective import PerspectiveCamera
 from Datasets.utils import View
 from Visual.ColorMap import ColorMap
-from ICGui.util.Cameras import argmax_similarity
-from ICGui.util.Enums import TimeAnimation
+from ICGui.util.Cameras import argmax_temporal_similarity
 from ICGui.util.Singleton import Singleton
 from .Shared import SharedState
 from .LaunchConfig import LaunchConfig
@@ -66,6 +65,7 @@ class CameraState(metaclass=Singleton):
     # GUI toggles
     focal_degrees: bool = field(init=False, default=False)
     constant_fov: bool = field(init=False, default=False)
+    prefer_temporal_similarity: bool = field(init=False, default=True)
 
     # Whether a ground truth camera is rendered
     render_gt: bool = field(init=False, default=False)
@@ -92,12 +92,6 @@ class CameraState(metaclass=Singleton):
         """Resets the camera to the default dataset camera, preserving the view."""
         self.current_view = deepcopy(self.dataset_view)
         self.unscaled_camera = deepcopy(self.dataset_camera)
-
-        if not GlobalState().launch_config.dataset_near_far:
-            # Default to extreme near and far plane, so zooming does not cause the scene to disappear
-            self.current_camera.near_plane = min(self.current_camera.near_plane, 0.01)
-            self.current_camera.far_plane = max(self.current_camera.far_plane * 2.0, 1024.0)
-
         self.rescale()
 
     def reset_view(self):
@@ -147,15 +141,17 @@ class CameraState(metaclass=Singleton):
         """Updates the current view with the given c2w matrix, and updates the timestamp."""
         if (gt_idx := self.gt_idx) == -1:
             if self.snap_to_gt:
-                self.render_gt = True
-                gt_idx = self.gt_idx
-                self.render_gt = False
-                self.current_view.c2w = self.dataset_poses[self.dataset_split][gt_idx].c2w_numpy
+                self.current_view.c2w = self.dataset_poses[self.dataset_split][self._nearest_gt_idx].c2w_numpy
             else:
                 self.current_view.c2w = c2w
         else:
             self.current_view.c2w = self.dataset_poses[self.dataset_split][gt_idx].c2w_numpy
         self.current_view.timestamp = TimeState().timestamp
+
+        # Reset global frame index if moved
+        if GlobalState().input_manager.control_scheme.has_moved:
+            self.current_view.global_frame_idx = -1
+            self.current_view.frame_idx = -1
 
     @property
     def current_camera(self) -> BaseCamera:
@@ -276,6 +272,15 @@ class CameraState(metaclass=Singleton):
             self.rescale()
 
     @property
+    def _nearest_gt_idx(self) -> int:
+        return argmax_temporal_similarity(
+            GlobalState().input_manager.control_scheme.c2w,
+            TimeState().timestamp,
+            [(pose.c2w_numpy, pose.timestamp) for pose in self.dataset_poses[self.dataset_split]],
+            prefer_time=self.prefer_temporal_similarity,
+        )
+
+    @property
     def screenshot_view(self) -> View:
         """Returns the view used for screenshots, which is the same as the current view unless a resolution
         override is set, in which case the camera is modified to match the override resolution."""
@@ -300,17 +305,16 @@ class CameraState(metaclass=Singleton):
     def gt_idx(self) -> int:
         """Index of the GT pose to render, -1 means no GT, i.e. shows the current camera render"""
         if self.render_gt:
-            return argmax_similarity(
-                GlobalState().input_manager.control_scheme.c2w,
-                [pose.c2w_numpy for pose in self.dataset_poses[self.dataset_split]],
-            )
+            return self._nearest_gt_idx
         return -1
 
     @property
-    def view_idx_current_timestamp(self):
-        """Returns the index of the view that is closest to the current timestamp."""
-        timestamps = [c.timestamp for c in self.dataset_poses[self.dataset_split]]
-        return np.argmin(np.abs(np.array(timestamps) - self.current_view.timestamp))
+    def closest_timestep_indices(self):
+        """Returns a list of indices of views with the minimum distance to the current timestamp."""
+        timestamps = np.array([pose.timestamp for pose in self.dataset_poses[self.dataset_split]])
+        min_distance = np.min(np.abs(timestamps - TimeState().timestamp))
+        closest_indices = np.nonzero(np.abs(timestamps - TimeState().timestamp) == min_distance)[0]
+        return closest_indices
 
     @property
     def poses(self) -> list[View]:
@@ -514,77 +518,74 @@ class ResolutionScaleState(metaclass=Singleton):
 
 @dataclass(slots=True)
 class TimeState(metaclass=Singleton):
-    _time: float = 0.0
-    timestamp: float = 0.0
+    """Manages time state for dynamic scenes with direct dataset timestamp values."""
+    timestamp: float = 0.0  # Derived from internal time, including discretization
     paused: bool = False
     discrete_time: bool = True
 
-    animation: TimeAnimation = TimeAnimation.LINEAR_BOUNCE
     speed: float = 0.2
+    is_reverse: bool = False  # Whether to move backward instead of forward
+    enable_bounce: bool = False  # Whether to reverse at boundaries (instead of wrapping)
+
+    # Dynamic timestamp range determined from dataset
+    min_timestamp: float = field(init=False, default=0.0)
+    max_timestamp: float = field(init=False, default=1.0)
+    _timestamp_list: np.ndarray = field(init=False)  # List of all timestamps in the dataset, used for discretization
+    _time: float = field(init=False, default=0.0)  # Internal time position used for animation
+
+    def __post_init__(self):
+        self._timestamp_list = np.array([c.timestamp for c in CameraState().poses])
+        if len(self._timestamp_list) > 0:
+            self.min_timestamp = np.min(self._timestamp_list)
+            self.max_timestamp = np.max(self._timestamp_list)
+            self._time = self.min_timestamp
 
     @property
     def time(self) -> float:
-        """Returns the current camera timestamp in range [-1, 1], with the sign indicating the
-        current direction of time."""
-        if self.animation == TimeAnimation.LINEAR_FORWARD:
-            return self.timestamp
-        if self.animation == TimeAnimation.LINEAR_REVERSE:
-            return -self.timestamp
-        if self.animation == TimeAnimation.LINEAR_BOUNCE:
-            return math.copysign(self.timestamp, self._time - 1.0)
-        if self.animation == TimeAnimation.SINUSOIDAL:
-            return math.copysign(self.timestamp, math.cos(self._time * self.speed))
-
-        raise ValueError(f'Invalid time animation {self.animation}')
+        """Returns the current camera timestamp."""
+        return self.timestamp
 
     @time.setter
     def time(self, value: float) -> None:
-        """Sets the current time to a value in the range [-1, 1]."""
-        if not -1.0 <= value <= 1.0:
-            raise ValueError(f'Invalid value {value} for time, must be in range [-1, 1]')
+        """Sets the current timestamp to a value in the range [min_timestamp, max_timestamp]."""
+        if not self.min_timestamp <= value <= self.max_timestamp:
+            raise ValueError(f'Invalid value {value} for time, must be in range [{self.min_timestamp}, {self.max_timestamp}]')
+        self._time = value
 
-        # Infer a linear time value that maps to the correct timestamp,
-        #   with sign indicating the current animation direction.
-        if self.animation == TimeAnimation.LINEAR_FORWARD:
-            self._time = self.timestamp = abs(value)
-        elif self.animation == TimeAnimation.LINEAR_REVERSE:
-            self._time = 1.0 - abs(value)
-            self.timestamp = 1.0 - self._time
-        elif self.animation == TimeAnimation.LINEAR_BOUNCE:
-            self._time = value + 1.0
-        elif self.animation == TimeAnimation.SINUSOIDAL:
-            self._time = math.asin(2 * abs(value) - 1) / self.speed if value >= 0 else \
-                (-math.asin(2 * abs(value) - 1) + math.pi) / self.speed
-            self.timestamp = (math.sin(self._time * self.speed) + 1) / 2
+        # Set timestamp based on discretization setting
+        if self.discrete_time and len(self._timestamp_list) > 0:
+            # Discretize time to ensure only dataset timestamps are used
+            idx = np.argmin(np.abs(self._timestamp_list - self._time))
+            self.timestamp = self._timestamp_list[idx]
+        else:
+            self.timestamp = self._time
 
     def update(self, dt: float):
-        """Increments the current time by dt and updates the camera timestamp."""
-        if self.animation == TimeAnimation.LINEAR_FORWARD:
-            self._time += dt * self.speed if not self.paused else 0.0
-            self._time %= 1.0
-            timestamp = self._time
-        elif self.animation == TimeAnimation.LINEAR_REVERSE:
-            self._time += dt * self.speed if not self.paused else 0.0
-            self._time %= 1.0
-            timestamp = 1.0 - self._time
-        elif self.animation == TimeAnimation.LINEAR_BOUNCE:
-            self._time += dt * self.speed if not self.paused else 0.0
-            self._time %= 2.0
-            timestamp = abs(self._time - 1.0)
-        elif self.animation == TimeAnimation.SINUSOIDAL:
-            self._time += dt if not self.paused else 0.0
-            timestamp = (math.sin(self._time * self.speed) + 1) / 2
-        else:
-            raise ValueError(f'Invalid time animation {self.animation}')
+        """Increments time by dt and updates the camera timestamp."""
+        if self.paused:
+            return
+        if self.max_timestamp - self.min_timestamp == 0:
+            return
 
-        if self.discrete_time:
-            # Discretize time to ensure only dataset timestamps are used
-            timestamps = [c.timestamp for c in CameraState().poses]
-            idx = np.argmin(np.abs(np.array(timestamps) - timestamp))
-            self.timestamp = timestamps[idx]
-        else:
-            self.timestamp = timestamp
+        # Update position based on direction and bounce settings
+        direction = -1 if self.is_reverse else 1
+        self._time += dt * self.speed * direction
 
+        if self._time < self.min_timestamp:
+            if self.enable_bounce:
+                self._time = self.min_timestamp + (self.min_timestamp - self._time)
+                self.is_reverse = not self.is_reverse
+            else:
+                self._time = self.max_timestamp - (self.min_timestamp - self._time) % (self.max_timestamp - self.min_timestamp)
+        elif self._time > self.max_timestamp:
+            if self.enable_bounce:
+                self._time = self.max_timestamp - (self._time - self.max_timestamp)
+                self.is_reverse = not self.is_reverse
+            else:
+                self._time = self.min_timestamp + (self._time - self.max_timestamp) % (self.max_timestamp - self.min_timestamp)
+
+        # Clamp to valid range in case we overshoot due to large dt or speed
+        self.time = max(self.min_timestamp, min(self.max_timestamp, self._time))
 
 @dataclass(slots=True)
 class ScreenshotState(metaclass=Singleton):

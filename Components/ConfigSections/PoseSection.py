@@ -4,12 +4,13 @@ from dataclasses import dataclass
 
 from imgui_bundle import imgui, icons_fontawesome_6 as fa
 
+from Datasets.utils import View
 from ICGui.Components.HelpIndicator import help_indicator
 from ICGui.Components.StyledToggle import styled_toggle
 from ICGui.Components.TensorInput import input_mat4
 from ICGui.Controls import InputCallback
 from ICGui.State.Volatile import GlobalState, CameraState, TimeState
-from ICGui.util.Cameras import argmax_similarity
+from ICGui.util.Cameras import argmax_temporal_similarity
 from ICGui.util.Enums import Action
 from .Section import Section
 
@@ -68,6 +69,9 @@ class PoseSection(Section):
         _, GlobalState().skip_animations = styled_toggle('Skip Animations', GlobalState().skip_animations)
         help_indicator('Skip camera animations when jumping to a new position.')
 
+        _, CameraState().prefer_temporal_similarity = styled_toggle('Snap to closest time first', CameraState().prefer_temporal_similarity)
+        help_indicator('Whether to consider timestamp or pose first for jumping to nearest camera (and showing GT).')
+
         changed, _ = styled_toggle('Show ground truth image', CameraState().render_gt)
         if changed:
             self.toggle_gt()
@@ -105,10 +109,11 @@ class PoseSection(Section):
             for split in splits:
                 changed, val = imgui.selectable(split, split == current_split)
                 if changed:
+                    pose: View = poses[split][0]
                     camera_state.dataset_split = split
-                    pose = poses[split][0]
-                    input_manager.control_scheme.ease_to(to_c2w=pose.c2w_numpy)
-                    TimeState().time = pose.timestamp
+                    camera_state.current_view.frame_idx = pose.frame_idx
+                    camera_state.current_view.global_frame_idx = pose.global_frame_idx
+                    input_manager.control_scheme.ease_to(to_c2w=pose.c2w_numpy, to_timestamp=pose.timestamp)
                     self._last_pose_idx = 0
             imgui.end_combo()
 
@@ -117,10 +122,11 @@ class PoseSection(Section):
         if (imgui.begin_combo('##DatasetPoseSelector',
                               'Choose pose from dataset' if pose_idx == -1
                               else f'Pose {self._last_pose_idx}')):
-            for i, cam in enumerate(poses[camera_state.dataset_split]):
+            for i, pose in enumerate(poses[camera_state.dataset_split]):
                 if imgui.selectable(f'Pose {i}', False)[0]:
-                    input_manager.control_scheme.ease_to(to_c2w=cam.c2w_numpy)
-                    TimeState().time = cam.timestamp
+                    input_manager.control_scheme.ease_to(to_c2w=pose.c2w_numpy, to_timestamp=pose.timestamp)
+                    camera_state.current_view.frame_idx = pose.frame_idx
+                    camera_state.current_view.global_frame_idx = pose.global_frame_idx
                     self._last_pose_idx = i
             imgui.end_combo()
 
@@ -132,12 +138,13 @@ class PoseSection(Section):
                        'on enter/focus loss of the text field. Valid formats include any set of 16 numbers, '
                        'separated by whitespace, commas or square brackets.')
 
-        changed, c2w = input_mat4('Camera to World Transformation', input_manager.control_scheme.c2w,
+        imgui.spacing()
+        changed, c2w = input_mat4(f'{fa.ICON_FA_TABLE_CELLS} Camera to World Transformation', input_manager.control_scheme.c2w,
                                   as_separate=not self._matrices_as_text)
         if changed:
             input_manager.control_scheme.c2w = c2w
 
-        changed, w2c = input_mat4('World to Camera Transformation', input_manager.control_scheme.w2c,
+        changed, w2c = input_mat4(f'{fa.ICON_FA_TABLE_CELLS} World to Camera Transformation', input_manager.control_scheme.w2c,
                                   as_separate=not self._matrices_as_text)
         if changed:
             input_manager.control_scheme.w2c = w2c
@@ -158,12 +165,17 @@ class PoseSection(Section):
         """Jump to the closest pose in the dataset."""
         camera = GlobalState().input_manager.control_scheme
         camera_state = CameraState()
-        cam_idx = argmax_similarity(camera.c2w, [
-            pose.c2w_numpy for pose in camera_state.dataset_poses[camera_state.dataset_split]
-        ])
-        pose = camera_state.dataset_poses[camera_state.dataset_split][cam_idx]
-        camera.ease_to(to_c2w=pose.c2w_numpy)
-        TimeState().time = pose.timestamp
+        cam_idx = argmax_temporal_similarity(
+            camera.c2w,
+            TimeState().timestamp,
+            [(pose.c2w_numpy, pose.timestamp) for pose in camera_state.dataset_poses[camera_state.dataset_split]],
+            prefer_time=camera_state.prefer_temporal_similarity,
+        )
+
+        pose: View = camera_state.dataset_poses[camera_state.dataset_split][cam_idx]
+        camera.ease_to(to_c2w=pose.c2w_numpy, to_timestamp=pose.timestamp)
+        camera_state.current_view.frame_idx = pose.frame_idx
+        camera_state.current_view.global_frame_idx = pose.global_frame_idx
         self._last_pose_idx = cam_idx
 
     def cycle_pose(self, increment: int = 1):
@@ -174,8 +186,9 @@ class PoseSection(Section):
             return
         self._last_pose_idx = (self._last_pose_idx + increment) % len(poses)
         pose = poses[self._last_pose_idx]
-        GlobalState().input_manager.control_scheme.ease_to(to_c2w=pose.c2w_numpy)
-        TimeState().time = pose.timestamp
+        camera_state.current_view.frame_idx = pose.frame_idx
+        camera_state.current_view.global_frame_idx = pose.global_frame_idx
+        GlobalState().input_manager.control_scheme.ease_to(to_c2w=pose.c2w_numpy, to_timestamp=pose.timestamp)
 
     def cycle_dataset_split(self, increment: int = 1):
         """Switch to the next dataset split."""
@@ -192,5 +205,6 @@ class PoseSection(Section):
         self._last_pose_idx = 0
         if camera_state.dataset_poses[camera_state.dataset_split]:
             pose = camera_state.dataset_poses[camera_state.dataset_split][0]
-            global_state.input_manager.control_scheme.ease_to(to_c2w=pose.c2w_numpy)
-            TimeState().time = pose.timestamp
+            global_state.input_manager.control_scheme.ease_to(to_c2w=pose.c2w_numpy, to_timestamp=pose.timestamp)
+            camera_state.current_view.frame_idx = pose.frame_idx
+            camera_state.current_view.global_frame_idx = pose.global_frame_idx

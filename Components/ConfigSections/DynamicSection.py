@@ -1,7 +1,6 @@
 """Components/ConfigSections/DynamicSection.py: Configuration section for timestep-related settings."""
 
 from dataclasses import dataclass
-from typing import ClassVar
 
 from imgui_bundle import imgui, icons_fontawesome_6 as fa
 
@@ -9,7 +8,6 @@ from ICGui.Components.HelpIndicator import help_indicator
 from ICGui.Components.StyledToggle import styled_toggle
 from ICGui.Controls import InputCallback
 from ICGui.State.Volatile import GlobalState, TimeState, CameraState
-from ICGui.util.Enums import TimeAnimation
 from .Section import Section
 
 
@@ -18,10 +16,6 @@ class DynamicSection(Section):
     name: str = f'{fa.ICON_FA_PERSON_RUNNING} Dynamic Scenes'
     always_open: bool = False
     default_open: bool = False
-
-    _ANIMATION_NAMES: ClassVar[list[str]] = [
-        name.title().replace('_', ' ') for name in TimeAnimation.__members__.keys()
-    ]
 
     class DynamicError(Exception):
         pass
@@ -48,10 +42,10 @@ class DynamicSection(Section):
 
     def _render_time(self):
         time_state = TimeState()
-        old_time = time_state.time
 
         # Current Time
-        min_time, max_time = 0.0, 1.0
+        min_time = time_state.min_timestamp
+        max_time = time_state.max_timestamp
         changed, new_time = imgui.slider_float('Time', time_state.timestamp,
                                                min_time, max_time)
         if changed:
@@ -69,14 +63,15 @@ class DynamicSection(Section):
                                               0.0, 64.0)
         if changed:
             time_state.speed = max(min_speed, min(max_speed, new_speed))
-            time_state.time = old_time  # Reset time since adjusting speed changes the timestep calculation
         imgui.pop_item_width()
 
-        # Animation Mode
-        changed, new_anim = imgui.combo('Time Scaling', time_state.animation.value,
-                                        self._ANIMATION_NAMES)
-        if changed:
-            time_state.animation = TimeAnimation(new_anim)
+        # Direction controls
+        _, time_state.is_reverse = styled_toggle(f'{fa.ICON_FA_ARROW_LEFT} Reverse Time', time_state.is_reverse)
+        imgui.same_line(spacing=imgui.get_style().item_inner_spacing.x)
+
+        # Bounce toggle
+        _, time_state.enable_bounce = styled_toggle(f'{fa.ICON_FA_LEFT_RIGHT} Bounce', time_state.enable_bounce)
+        help_indicator('Reverse at boundaries instead of wrapping.')
 
         # Discrete Time Toggle
         changed, time_state.discrete_time = styled_toggle('Use Discrete Timesteps',
@@ -87,5 +82,5 @@ class DynamicSection(Section):
 
     @staticmethod
     def toggle_pause():
-        """Toggle the visibility of the ground truth."""
+        """Toggle the pause state."""
         TimeState().paused = not TimeState().paused

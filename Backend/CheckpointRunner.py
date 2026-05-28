@@ -98,7 +98,7 @@ class CheckpointRunner:
         gt_idx = self._state.gt_index
         gt_split = self._state.gt_split
         if gt_idx < 0 or not isinstance(self._gui_view.camera, PerspectiveCamera):
-            self._fps.enable()
+            self._fps.enable_cuda()
             self._fps.start_timer()
             output = {
                 **self.renderer.render_image(self._gui_view),
@@ -107,7 +107,8 @@ class CheckpointRunner:
             }
             self._fps.update()
         else:
-            self._fps.disable()  # Disable FPS calculation when showing GT
+            self._fps.disable_cuda()
+            self._fps.start_timer()
             if self._gt_image_cache['idx'] != gt_idx or self._gt_image_cache['split'] != gt_split:
                 self._gt_image_cache['result'] = transform_gt_image(self.dataset.set_mode(gt_split), gt_idx,
                                                                     self._gui_view.camera)
@@ -118,6 +119,7 @@ class CheckpointRunner:
                 'view': self._gui_view,
                 'type': 'gt'
             }
+            self._fps.update()
         return output
 
     @Framework.catch()

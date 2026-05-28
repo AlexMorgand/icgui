@@ -77,12 +77,6 @@ class LaunchConfig:
                         'Large values can take a while to adapt to new viewpoints '
                         'or resolutions for slower models.',
     })
-    dataset_near_far: bool = field(default=True, metadata={
-        'name': 'Use Dataset Near/Far',
-        'argparse_kwargs': {'help': 'Start with near and far planes set to the dataset values.'},
-        'help_tooltip': 'Use near/far planes specified in the dataset. Otherwise, '
-                        'uses arbitrary "large" values (0.01 and 1024.0).',
-    })
     vsync: bool = field(default=True, metadata={
         'name': 'VSync',
         'argparse_kwargs': {'help': 'vertical frame synchronization.'},

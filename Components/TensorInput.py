@@ -3,7 +3,6 @@
 import numpy as np
 from imgui_bundle import imgui, imgui_ctx, icons_fontawesome_6 as fa
 
-from ICGui.Backend import FontManager
 from ICGui.Components.Colors import apply_ui_color
 from ICGui.util.Cameras import parse_mat4
 
@@ -20,17 +19,18 @@ def input_mat4(label: str, matrix: np.ndarray, as_separate: bool = False) -> tup
             otherwise renders it as a multi-line text input.
     """
     assert matrix.shape == (4, 4)
-    imgui.push_font(FontManager.current.bold, 0.0)
     imgui.text(label)
-    imgui.pop_font()
 
     if as_separate:
         _input_cache = _INPUT_CACHE.setdefault(label, {})
+        imgui.push_style_var_x(imgui.StyleVar_.item_inner_spacing, 2)
+        imgui.push_style_var_x(imgui.StyleVar_.item_spacing, 1)
+        imgui.push_style_var_y(imgui.StyleVar_.item_spacing, 1)
 
         # Render accept / cancel buttons
         cursor_pos = imgui.get_cursor_pos()
         button_pos = imgui.get_cursor_pos()
-        button_pos.x += imgui.calc_item_width() + imgui.get_style().item_spacing.x
+        button_pos.x += imgui.calc_item_width() + imgui.get_style().item_inner_spacing.x
         imgui.set_cursor_pos(button_pos)
         item_height = imgui.get_frame_height()
         line_height = imgui.get_frame_height_with_spacing()
@@ -64,7 +64,7 @@ def input_mat4(label: str, matrix: np.ndarray, as_separate: bool = False) -> tup
 
         # Calculate width of individual input fields
         item_width = imgui.calc_item_width() * 0.25
-        spacing = imgui.get_style().item_inner_spacing.x
+        spacing = imgui.get_style().item_spacing.x
         item_width -= spacing * 3 / 4  # Adjust for spacing between inputs
 
         with imgui_ctx.push_item_width(item_width):
@@ -93,10 +93,13 @@ def input_mat4(label: str, matrix: np.ndarray, as_separate: bool = False) -> tup
                     imgui.same_line(spacing=spacing)
                 imgui.new_line()
 
+        imgui.same_line()
+        imgui.pop_style_var(3)
+        imgui.new_line()
         return accepted, matrix
     else:
         changed, mat_text = imgui.input_text_multiline(
-            f'##{matrix}', str(matrix), (-1, imgui.get_frame_height() * 4),
+            f'##{matrix}', str(matrix), (-1, imgui.get_frame_height() * 4 + 3),
             flags=imgui.InputTextFlags_.enter_returns_true
                   | imgui.InputTextFlags_.allow_tab_input
                   | imgui.InputTextFlags_.ctrl_enter_for_new_line,

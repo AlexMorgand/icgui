@@ -131,14 +131,14 @@ def get_distortion_idx(distortion: BaseDistortion | None) -> int:
 
 
 def calculate_similarity(a: np.typing.NDArray[np.float32], b: np.typing.NDArray[np.float32], /):
-    """Calculates the similarity between two projection matrices using the Frobenius norm.
+    """Calculates the similarity between two view matrices using the Frobenius norm.
 
     Args:
-      a: A numpy array representing the first projection matrix.
-      b: A numpy array representing the second projection matrix.
+      a: A numpy array representing the first view matrix.
+      b: A numpy array representing the second view matrix.
 
     Returns:
-      A float representing the similarity between the two projection matrices.
+      A float representing the similarity between the two view matrices, where higher values indicate greater similarity.
     """
     difference = a - b
     frobenius_norm = np.linalg.norm(difference, 'fro')
@@ -150,14 +150,43 @@ def argmax_similarity(target: np.typing.NDArray[np.float32], choices: list[np.ty
     """Finds the index of the element in choices that is most similar to the target.
 
     Args:
-      target: A numpy array representing the target projection matrix.
-      choices: A list of numpy arrays representing the candidate projection matrices.
+      target: A numpy array representing the target view matrix.
+      choices: A list of numpy arrays representing the candidate view matrices.
 
     Returns:
-      The index of the most similar projection matrix in choices.
+      The index of the most similar view matrix in choices.
     """
     similarities = [calculate_similarity(target, choice) for choice in choices]
     return np.argmax(similarities).item()
+
+
+def argmax_temporal_similarity(target_pose: np.typing.NDArray[np.float32], target_t: float,
+                               choices: list[tuple[np.typing.NDArray[np.float32], float]],
+                               prefer_time: bool = True) -> int:
+    """Finds the index of the element in choices that is most similar to the target.
+
+    Args:
+      target_pose: A numpy array representing the target view matrix.
+      target_t: A float representing the timestamp of the target view matrix.
+      choices: A list of numpy arrays representing the candidate view matrices.
+      prefer_time: If True, prioritize temporal proximity over pose similarity. If False, prioritize pose.
+
+    Returns:
+      The index of the most similar view matrix / timestamp in choices, prioritized according to prefer_time.
+    """
+    if prefer_time:
+        time_differences = np.array([abs(target_t - choice_t) for _, choice_t in choices])
+        time_argmin = np.argwhere(time_differences == np.min(time_differences)).flatten()
+        choice_poses = np.array([choice_pose for choice_pose, _ in choices])[time_argmin]
+        pose_similarities = [calculate_similarity(target_pose, choice) for choice in choice_poses]
+        pose_index = np.argmax(pose_similarities).item()
+        return time_argmin[pose_index]
+    else:
+        pose_similarities = np.array([calculate_similarity(target_pose, choice_pose) for choice_pose, _ in choices])
+        pose_argmax = np.argwhere(pose_similarities == np.max(pose_similarities)).flatten()
+        time_differences = np.array([abs(target_t - choice_t) for _, choice_t in choices])[pose_argmax]
+        time_index = np.argmin(time_differences).item()
+        return pose_argmax[time_index]
 
 
 def parse_mat4(tensor_str: str) -> np.ndarray:

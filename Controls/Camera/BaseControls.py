@@ -9,7 +9,7 @@ import quaternion as quat
 
 from Cameras.utils import invert_3d_affine
 from ICGui.Controls.utils import InputCallback
-from ICGui.State.Volatile import GlobalState
+from ICGui.State.Volatile import GlobalState, TimeState
 from ICGui.util.Enums import Action
 from .utils import Animation, EasingAnimation
 
@@ -181,16 +181,17 @@ class BaseControls(ABC):
         """Decreases the travel speed of the camera."""
         self.travel_speed_scale *= 0.9
 
-    def ease_to(self, *, to_w2c: np.ndarray = None, to_c2w: np.ndarray = None, duration: float = 1.0) -> Self:
+    def ease_to(self, *, to_w2c: np.ndarray = None, to_c2w: np.ndarray = None,
+                to_timestamp: float | None = None, duration: float = 1.0) -> Self:
         """Eases the camera to the given target camera."""
-        # TODO: do this in the time dimension as well
         self.has_moved = False
-
         if GlobalState().skip_animations:
             if to_c2w is not None:
                 self.c2w = to_c2w
             elif to_w2c is not None:
                 self.w2c = to_w2c
+            if to_timestamp is not None:
+                TimeState().time = to_timestamp
             self._recalculate_directions()
             return self
 
@@ -200,16 +201,28 @@ class BaseControls(ABC):
             from_attributes={
                 'position': self.position,
                 'rotation': self.rotation,
+                '_timestamp': self._timestamp,
             },
             to_attributes={
                 'position': target_cam.position,
                 'rotation': target_cam.rotation,
+                '_timestamp': to_timestamp if to_timestamp is not None else self._timestamp,
             },
             interpolation={
                 'rotation': EasingAnimation.slerp,
             }
         )
         return target_cam
+
+    @property
+    def _timestamp(self) -> float:
+        """Returns the current timestamp of the camera; this is used for animations and should not be used for general purposes."""
+        return TimeState().timestamp
+
+    @_timestamp.setter
+    def _timestamp(self, timestamp: float):
+        """Sets the current timestamp of the camera; this is used for animations and should not be used for general purposes."""
+        TimeState().time = timestamp
 
     def stop_animation(self):
         self._animation = None

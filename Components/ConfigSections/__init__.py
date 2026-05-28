@@ -13,3 +13,4 @@ from .PerformanceSection import PerformanceSection
 from .PoseSection import PoseSection
 from .ResolutionSection import ResolutionSection
 from .ScreenshotSection import ScreenshotSection
+from .DebugInfoSection import DebugInfoSection

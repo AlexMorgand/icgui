@@ -30,11 +30,10 @@ class UnitCube(BaseOverlay):
         self._cube_indices_vbo: VBO
         self._cube_vertices_vbo, self._cube_indices_vbo = get_cube_wireframe()
 
+        # gl uniform functions don't accept their arguments as kwargs, so specify additional ones (e.g. transpose) in order
         self._uniform_locations: dict[str, tuple[int, str, tuple]] = {
-            'view': (gl.glGetUniformLocation(self._wireframe_shader_program,
-                                             'viewMatrix'), 'mat4', (True, )),
-            'projection': (gl.glGetUniformLocation(self._wireframe_shader_program,
-                                                   'projectionMatrix'), 'mat4', (True, )),
+            'view': (gl.glGetUniformLocation(self._wireframe_shader_program, 'viewMatrix'), 'mat4', (True, )),
+            'projection': (gl.glGetUniformLocation(self._wireframe_shader_program, 'projectionMatrix'), 'mat4', (True, )),
             'viewportSize': (gl.glGetUniformLocation(self._wireframe_shader_program, 'viewportSize'), 'vec2', tuple()),
             'near': (gl.glGetUniformLocation(self._wireframe_shader_program, 'near'), 'float', tuple()),
             'far': (gl.glGetUniformLocation(self._wireframe_shader_program, 'far'), 'float', tuple()),
@@ -49,6 +48,10 @@ class UnitCube(BaseOverlay):
     def name(self) -> str:
         """Returns the name of the extra."""
         return 'Unit Cube'
+
+    @property
+    def help(self) -> str | None:
+        return 'Renders an axis-aligned unit cube (side length 1) centered at the origin.'
 
     def render_options(self):
         """Renders imgui inputs for the options of the extra."""

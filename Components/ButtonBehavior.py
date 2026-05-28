@@ -28,3 +28,5 @@ def button_behavior(btn_id: str):
 
         imgui.set_cursor_pos(cursor_start)
         result.pressed = imgui.invisible_button(f'##invisible_button_{btn_id}', (width, height))
+        if imgui.is_item_hovered():
+            imgui.set_mouse_cursor(imgui.MouseCursor_.hand)

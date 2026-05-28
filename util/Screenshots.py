@@ -39,13 +39,16 @@ def save_screenshot(imgs: Mapping[str, torch.Tensor],
     Logger.log_info(f'Saved screenshot to {screenshot_path}')
 
 
+def get_screenshot_name(screenshot_name_extras: str) -> str:
+    return f'{Framework.config.TRAINING.MODEL_NAME}_' \
+           f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")}_' \
+           f'{screenshot_name_extras}.png'
+
+
 def get_screenshot_path(screenshot_name_extras: str) -> Path:
     """Returns a path object to store the screenshot at."""
     # pylint: disable=invalid-name
-    screenshot_name = f'{Framework.config.TRAINING.MODEL_NAME}_' \
-                      f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")}_' \
-                      f'{screenshot_name_extras}.png'
-
+    screenshot_name = get_screenshot_name(screenshot_name_extras)
     try:
         home_path = Path.home()
         for path in _DIRECTORY_CHOICES:

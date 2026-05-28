@@ -72,7 +72,7 @@ class ModelViewer:
 
         # Register extra items to render
         self._gl_overlays.append(UnitCube())
-        self._gl_overlays.append(CameraFrustums(initial_scale=0.15 * CameraState().bbox_size))
+        self._gl_overlays.append(CameraFrustums(initial_scale=0.075 * CameraState().bbox_size))
 
     def _initialize_cuda(self):
         """Initializes CUDA and registers the OpenGL texture as a CUDA image."""

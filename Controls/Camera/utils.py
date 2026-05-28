@@ -68,12 +68,12 @@ class Animation(ABC):
         pass
 
     @staticmethod
-    def lerp(from_value: _Interpolatable, to_value: _Interpolatable, t) -> _Interpolatable:
+    def lerp(from_value: _Interpolatable, to_value: _Interpolatable, t: float) -> _Interpolatable:
         """Linear interpolation between two values (that support addition and multiplication)."""
         return from_value * (1 - t) + to_value * t
 
     @staticmethod
-    def slerp(from_value: quat.quaternion, to_value: quat.quaternion, t) -> quat.quaternion:
+    def slerp(from_value: quat.quaternion, to_value: quat.quaternion, t: float) -> quat.quaternion:
         """Spherical linear interpolation between two quaternions or vectors."""
         # noinspection PyUnresolvedReferences
         return np.slerp_vectorized(from_value, to_value, t)  # (provided by numpy-quaternion)

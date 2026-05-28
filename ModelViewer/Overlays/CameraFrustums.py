@@ -1,7 +1,7 @@
 """ModelViewer/Overlays/CameraFrustum.py: Camera frustum overlay showing dataset poses in the scene."""
 
-from typing import Any
 import math
+from typing import Any
 
 import numpy as np
 import OpenGL.GL as gl
@@ -9,8 +9,8 @@ from imgui_bundle import imgui
 from OpenGL.arrays.vbo import VBO
 from OpenGL.GL.shaders import ShaderProgram
 
-from Cameras.Equirectangular import EquirectangularCamera
 from .Base import BaseOverlay
+from Cameras.Equirectangular import EquirectangularCamera
 from Cameras.Perspective import PerspectiveCamera
 from Datasets.utils import View
 from ICGui.ModelViewer.Shaders import get_point_shader, get_frustum_shader
@@ -78,6 +78,11 @@ class CameraFrustums(BaseOverlay):
     def name(self) -> str:
         """Returns the name of the extra."""
         return 'Camera Frustums'
+
+    @property
+    def help(self) -> str | None:
+        return ('Renders camera frustums for the currently selected dataset split into the scene. '
+                'Only supports Perspective and Equirectangular camera rendering.')
 
     @staticmethod
     def _generate_camera_points(split: str) -> tuple[VBO, int]:
@@ -158,7 +163,7 @@ class CameraFrustums(BaseOverlay):
         min_point_size, max_point_size = 1e-9, 0.1
         changed, point_size = imgui.drag_float(
             f'Point Size##{self.name}', self._point_size,
-            v_speed=0.0001, v_min=min_point_size, v_max=max_point_size, format='%.5f'
+            v_speed=0.0001, v_min=min_point_size, v_max=max_point_size, format='%.5f',
         )
         if changed:
             self._point_size = max(min_point_size, min(point_size, max_point_size))
@@ -167,7 +172,7 @@ class CameraFrustums(BaseOverlay):
         min_line_width, max_line_width = 1e-9, 0.1
         changed, line_width = imgui.drag_float(
             f'Line Width##{self.name}', self._line_width,
-            v_speed=0.000025, v_min=min_line_width, v_max=max_line_width, format='%.5f'
+            v_speed=0.000025, v_min=min_line_width, v_max=max_line_width, format='%.5f',
         )
         if changed:
             self._line_width = max(min_line_width, min(line_width, max_line_width))
@@ -175,9 +180,9 @@ class CameraFrustums(BaseOverlay):
         # Frustum scaling factor
         min_frustum_scale, max_frustum_scale = 1e-9, 100.0
         changed, frustum_scale = imgui.drag_float(
-            f'Frustum Scale##{self.name}',
-                                                   self._frustum_scale, 0.0001,
-                                                   min_frustum_scale, max_frustum_scale, format='%.5f')
+            f'Frustum Scale##{self.name}', self._frustum_scale,
+            v_speed=0.0001, v_min=min_frustum_scale, v_max=max_frustum_scale, format='%.5f',
+        )
         if changed:
             self._frustum_scale = max(min_frustum_scale, min(frustum_scale, max_frustum_scale))
 
@@ -217,6 +222,9 @@ class CameraFrustums(BaseOverlay):
     def render(self, view: View, extra_params: dict[str, Any]):
         """Renders the extra into the scene."""
         split = CameraState().dataset_split
+        if split is None:
+            return
+
         camera = view.camera
         if not isinstance(camera, PerspectiveCamera):
             Logger.log_warning(f'Camera frustums can only be rendered with a PerspectiveCamera, got {type(camera)}')

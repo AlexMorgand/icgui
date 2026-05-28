@@ -5,6 +5,7 @@ from typing import Any
 
 from imgui_bundle import imgui, icons_fontawesome_6 as fa
 
+from ICGui.Components.HelpIndicator import help_indicator
 from ICGui.Components.StyledToggle import styled_toggle
 from ICGui.State.Volatile import OverlayState
 from .Section import Section
@@ -27,6 +28,9 @@ class OverlaysSection(Section):
         for overlay in overlays.available_overlays:
             overlays.enabled.setdefault(overlay.name, False)
             _, overlays.enabled[overlay.name] = styled_toggle(overlay.name, overlays.enabled[overlay.name])
+
+            if overlay.help is not None:
+                help_indicator(overlay.help)
 
             if overlays.enabled[overlay.name]:
                 overlay.render_options()

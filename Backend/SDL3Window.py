@@ -1,6 +1,7 @@
 """Backend/SDL3Window.py: Backend proving windowing support ."""
 
 import ctypes
+import os
 from pathlib import Path
 from typing import Any, Callable
 

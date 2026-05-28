@@ -41,11 +41,3 @@ class Modifier(Enum):
 class CallbackType(Enum):
     """Enum for GUI backend callback types."""
     RESIZE = auto()
-
-
-class TimeAnimation(Enum):
-    """Enum for different time modes"""
-    SINUSOIDAL = 0
-    LINEAR_FORWARD = auto()
-    LINEAR_REVERSE = auto()
-    LINEAR_BOUNCE = auto()
