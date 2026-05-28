@@ -85,9 +85,11 @@ class CameraSection(Section):
         current_camera = CameraState().current_camera
 
         # Background Color
+        bg_col = current_camera.background_color
+        tmp_color = imgui.ImVec4(1.0, bg_col[0], bg_col[1], bg_col[2])
         changed, color = imgui.color_edit3(
             'Background Color',
-            _tensor_to_list_cached(current_camera.background_color),
+            tmp_color,
         )
         if changed:
             current_camera.background_color = torch.tensor(color, dtype=torch.float32, device='cpu')

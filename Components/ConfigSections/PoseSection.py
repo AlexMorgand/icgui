@@ -1,9 +1,14 @@
 """Components/ConfigSections/PoseSection.py: Camera pose configuration section for the config window."""
 
-from dataclasses import dataclass
+import json
+from datetime import datetime
+from dataclasses import dataclass, field
+from pathlib import Path
+from time import monotonic
 
 from imgui_bundle import imgui, icons_fontawesome_6 as fa
 
+from Cameras.Perspective import PerspectiveCamera
 from Datasets.utils import View
 from ICGui.Components.HelpIndicator import help_indicator
 from ICGui.Components.StyledToggle import styled_toggle
@@ -12,6 +17,7 @@ from ICGui.Controls import InputCallback
 from ICGui.State.Volatile import GlobalState, CameraState, TimeState
 from ICGui.util.Cameras import argmax_temporal_similarity
 from ICGui.util.Enums import Action
+from Logging import Logger
 from .Section import Section
 
 
@@ -24,6 +30,13 @@ class PoseSection(Section):
     _show_advanced = False
     _matrices_as_text = False
     _last_pose_idx: int = -1
+    _recording: bool = False
+    _record_fps: int = 30
+    _record_output_path: str = field(default_factory=lambda: f'trajectories/gui_recorded_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.json')
+    _record_keyframes: list[dict] = field(default_factory=list)
+    _record_start_time: float = 0.0
+    _last_record_time: float = 0.0
+    _last_record_c2w: list[list[float]] | None = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -62,6 +75,7 @@ class PoseSection(Section):
 
     def _render(self):
         self._render_dataset_pose_selector()
+        self._render_trajectory_recorder()
 
         if imgui.button('Jump to closest dataset pose'):
             self.jump_to_closest()
@@ -95,6 +109,112 @@ class PoseSection(Section):
         )
         if self._show_advanced:
             self._render_advanced()
+
+        if self._recording:
+            self._record_frame_if_due()
+
+    def _render_trajectory_recorder(self):
+        imgui.separator_text('Trajectory Recording')
+        imgui.text(f'Keyframes: {len(self._record_keyframes)}')
+
+        changed, fps = imgui.input_int('Record FPS', self._record_fps)
+        if changed:
+            self._record_fps = max(1, fps)
+
+        changed, output_path = imgui.input_text('Output Path', self._record_output_path)
+        if changed:
+            self._record_output_path = output_path
+
+        if not self._recording:
+            if imgui.button(f'{fa.ICON_FA_CIRCLE} Start Recording'):
+                self._start_recording()
+        else:
+            if imgui.button(f'{fa.ICON_FA_STOP} Stop & Save'):
+                self._stop_and_save_recording()
+            imgui.same_line()
+            if imgui.button('Add Keyframe Now'):
+                self._append_record_keyframe(force=True)
+
+        imgui.same_line()
+        if imgui.button('Clear'):
+            self._clear_recording()
+
+        help_indicator(
+            'Records the current GUI camera pose and intrinsics to JSON. '
+            'Replay it with scripts/inference.py --recorded-trajectory <path>.'
+        )
+
+    def _start_recording(self):
+        self._record_keyframes = []
+        self._record_start_time = monotonic()
+        self._last_record_time = 0.0
+        self._last_record_c2w = None
+        self._recording = True
+        self._append_record_keyframe(force=True)
+
+    def _stop_and_save_recording(self):
+        self._append_record_keyframe(force=True)
+        self._recording = False
+        self._save_recording()
+
+    def _clear_recording(self):
+        self._record_keyframes = []
+        self._recording = False
+        self._last_record_c2w = None
+
+    def _record_frame_if_due(self):
+        now = monotonic()
+        min_interval = 1.0 / float(max(1, self._record_fps))
+        if now - self._last_record_time >= min_interval:
+            self._append_record_keyframe()
+
+    def _append_record_keyframe(self, force: bool = False):
+        c2w = GlobalState().input_manager.control_scheme.c2w.astype(float)
+        c2w_list = c2w.tolist()
+        if not force and self._last_record_c2w == c2w_list:
+            return
+
+        camera = CameraState().current_camera
+        camera_payload = {
+            'width': int(camera.width),
+            'height': int(camera.height),
+            'near_plane': float(camera.near_plane),
+            'far_plane': float(camera.far_plane),
+            'background_color': camera.background_color.detach().cpu().tolist(),
+        }
+        if isinstance(camera, PerspectiveCamera):
+            camera_payload.update({
+                'focal_x': float(camera.focal_x),
+                'focal_y': float(camera.focal_y),
+                'center_x': float(camera.center_x),
+                'center_y': float(camera.center_y),
+            })
+
+        now = monotonic()
+        self._record_keyframes.append({
+            'time': now - self._record_start_time,
+            'timestamp': float(TimeState().timestamp),
+            'c2w': c2w_list,
+            'camera': camera_payload,
+        })
+        self._last_record_time = now
+        self._last_record_c2w = c2w_list
+
+    def _save_recording(self):
+        if not self._record_keyframes:
+            Logger.log_warning('No trajectory keyframes recorded.')
+            return
+        output_path = Path(self._record_output_path).expanduser()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            'format': 'nerficg_gui_trajectory',
+            'version': 1,
+            'fps': int(self._record_fps),
+            'frames': self._record_keyframes,
+        }
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, indent=2)
+        Logger.log_info(f'Saved GUI trajectory with {len(self._record_keyframes)} keyframes to {output_path}')
 
     def _render_dataset_pose_selector(self):
         global_state = GlobalState()
