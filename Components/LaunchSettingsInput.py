@@ -84,8 +84,9 @@ def _(value: str, metadata: Mapping[str, Any]):
         return None
 
 
-@settings_input.register
-def _(value: _Number, metadata: Mapping[str, Any]):
+@settings_input.register(int)
+@settings_input.register(float)
+def _number_settings_input(value, metadata: Mapping[str, Any]):
     """Shows a numeric input field."""
     # Extract arguments
     label = metadata.get('name', '!!MISSING NAME!!')
@@ -130,8 +131,9 @@ def _(value: list, metadata: Mapping[str, Any]):
 
 # Note: Currently, only Path options can be None, if other options are added in the future, we have to do more
 #       thorough type checking in case of None
-@settings_input.register
-def _(value: Path | None, metadata: Mapping[str, Any]) -> Path | None:
+@settings_input.register(type(None))
+@settings_input.register(Path)
+def _path_settings_input(value: Path | None, metadata: Mapping[str, Any]) -> Path | None:
     """Shows a file path input field."""
     label = metadata.get('name', '!!MISSING NAME!!')
     valid_extensions: Collection[str] = metadata.get('ext', ())

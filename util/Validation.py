@@ -31,8 +31,9 @@ def validate_field(value: Any, metadata: Mapping[str, Any]) -> ValidationResult:
     return ValidationResult(valid=True, reason='No validation implemented for this type')
 
 
-@validate_field.register
-def _(value: _Number, metadata: Mapping[str, Any]) -> ValidationResult:
+@validate_field.register(int)
+@validate_field.register(float)
+def _validate_number(value, metadata: Mapping[str, Any]) -> ValidationResult:
     """Validates a numeric input value."""
     min_val = metadata.get('min', -math.inf)
     max_val = metadata.get('max', math.inf)

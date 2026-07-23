@@ -7,7 +7,7 @@ from typing import Mapping
 
 import torch
 import OpenGL.GL as gl
-from cuda import cudart as cu
+from ICGui.Backend.cuda_runtime import cu
 from OpenGL.GL.shaders import ShaderProgram
 from sdl3 import *  # pylint: disable=redefined-builtin
 from torchvision.utils import save_image
@@ -15,7 +15,7 @@ from torchvision.utils import save_image
 import Framework
 from ICGui.Backend import CudaOpenGL, SDL3Window
 from ICGui.State.Volatile import CameraState, GlobalState, ColorMapState
-from .Overlays import BaseOverlay, UnitCube, CameraFrustums
+from .Overlays import BaseOverlay, UnitCube, CameraFrustums, EnvScopeSphere
 from .Shaders import get_tensor_shader
 from ICGui.util.ColorChannels import to_rgba
 
@@ -72,6 +72,7 @@ class ModelViewer:
 
         # Register extra items to render
         self._gl_overlays.append(UnitCube())
+        self._gl_overlays.append(EnvScopeSphere())
         self._gl_overlays.append(CameraFrustums(initial_scale=0.075 * CameraState().bbox_size))
 
     def _initialize_cuda(self):

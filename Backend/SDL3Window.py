@@ -19,18 +19,22 @@ from Logging import Logger
 class SDL3Window:
     WM_CLASS = 'NeRFICG'  # The window class name of the application (used e.g. for grouping related windows in the OS)
     CURSOR_SHAPE_MAP = {
-        imgui.MouseCursor_.none: SDL_SYSTEM_CURSOR_CROSSHAIR,
-        imgui.MouseCursor_.arrow: SDL_SYSTEM_CURSOR_DEFAULT,
-        imgui.MouseCursor_.text_input: SDL_SYSTEM_CURSOR_TEXT,
-        imgui.MouseCursor_.resize_all: SDL_SYSTEM_CURSOR_MOVE,
-        imgui.MouseCursor_.resize_ns: SDL_SYSTEM_CURSOR_NS_RESIZE,
-        imgui.MouseCursor_.resize_ew: SDL_SYSTEM_CURSOR_EW_RESIZE,
-        imgui.MouseCursor_.resize_nesw: SDL_SYSTEM_CURSOR_NESW_RESIZE,
-        imgui.MouseCursor_.resize_nwse: SDL_SYSTEM_CURSOR_NWSE_RESIZE,
-        imgui.MouseCursor_.hand: SDL_SYSTEM_CURSOR_POINTER,
-        imgui.MouseCursor_.wait: SDL_SYSTEM_CURSOR_WAIT,
-        imgui.MouseCursor_.progress: SDL_SYSTEM_CURSOR_PROGRESS,
-        imgui.MouseCursor_.not_allowed: SDL_SYSTEM_CURSOR_NOT_ALLOWED,
+        getattr(imgui.MouseCursor_, name): sdl_cursor
+        for name, sdl_cursor in (
+            ('none', SDL_SYSTEM_CURSOR_CROSSHAIR),
+            ('arrow', SDL_SYSTEM_CURSOR_DEFAULT),
+            ('text_input', SDL_SYSTEM_CURSOR_TEXT),
+            ('resize_all', SDL_SYSTEM_CURSOR_MOVE),
+            ('resize_ns', SDL_SYSTEM_CURSOR_NS_RESIZE),
+            ('resize_ew', SDL_SYSTEM_CURSOR_EW_RESIZE),
+            ('resize_nesw', SDL_SYSTEM_CURSOR_NESW_RESIZE),
+            ('resize_nwse', SDL_SYSTEM_CURSOR_NWSE_RESIZE),
+            ('hand', SDL_SYSTEM_CURSOR_POINTER),
+            ('wait', SDL_SYSTEM_CURSOR_WAIT),
+            ('progress', SDL_SYSTEM_CURSOR_PROGRESS),
+            ('not_allowed', SDL_SYSTEM_CURSOR_NOT_ALLOWED),
+        )
+        if hasattr(imgui.MouseCursor_, name)
     }
 
     """Interface for interacting with the SDL3 ImGui Backend."""

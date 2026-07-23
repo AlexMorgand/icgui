@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import torch
 import OpenGL.GL as gl
-from cuda import cudart as cu
+from ICGui.Backend.cuda_runtime import cu
 
 import Framework
 

@@ -1,6 +1,11 @@
 """Controls/Camera/BaseControls.py: Base class for different camera navigation implementations"""
 
-from typing import Callable, ClassVar, Self
+from typing import Callable, ClassVar
+
+try:
+    from typing import Self
+except ImportError:  # Python < 3.11
+    from typing_extensions import Self
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, InitVar
 

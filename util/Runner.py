@@ -35,9 +35,16 @@ def _to_gui_dataset_pose(view: View) -> View:
     """Expose original capture poses to GUI pose navigation in turntable mode."""
     pose = view.to_simple()
     original_c2w = pose.exif.get('turntable_original_c2w')
+    object_transform = pose.exif.get('turntable_object_transform')
     if original_c2w is not None:
         pose.c2w = original_c2w
-    return _without_turntable_exif(pose)
+    # Keep per-view object rotation for DR envmap lookup; drop camera override metadata.
+    for key in _TURNTABLE_EXIF_KEYS:
+        if key != 'turntable_object_transform':
+            pose.exif.pop(key, None)
+    if object_transform is not None:
+        pose.exif['turntable_object_transform'] = object_transform
+    return pose
 
 
 def _to_gui_default_view(view: View) -> View:
