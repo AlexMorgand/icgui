@@ -31,7 +31,10 @@ def validate_field(value: Any, metadata: Mapping[str, Any]) -> ValidationResult:
     return ValidationResult(valid=True, reason='No validation implemented for this type')
 
 
-@validate_field.register
+# Registered per concrete type: functools.singledispatch only accepts union
+# annotations on Python 3.11+, and this stack runs on 3.10.
+@validate_field.register(int)
+@validate_field.register(float)
 def _(value: _Number, metadata: Mapping[str, Any]) -> ValidationResult:
     """Validates a numeric input value."""
     min_val = metadata.get('min', -math.inf)

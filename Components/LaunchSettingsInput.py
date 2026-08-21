@@ -84,7 +84,10 @@ def _(value: str, metadata: Mapping[str, Any]):
         return None
 
 
-@settings_input.register
+# Registered per concrete type: functools.singledispatch only accepts union
+# annotations on Python 3.11+, and this stack runs on 3.10.
+@settings_input.register(int)
+@settings_input.register(float)
 def _(value: _Number, metadata: Mapping[str, Any]):
     """Shows a numeric input field."""
     # Extract arguments
@@ -130,7 +133,8 @@ def _(value: list, metadata: Mapping[str, Any]):
 
 # Note: Currently, only Path options can be None, if other options are added in the future, we have to do more
 #       thorough type checking in case of None
-@settings_input.register
+@settings_input.register(Path)
+@settings_input.register(type(None))
 def _(value: Path | None, metadata: Mapping[str, Any]) -> Path | None:
     """Shows a file path input field."""
     label = metadata.get('name', '!!MISSING NAME!!')
